@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroSeguro — Panel de la DApp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#161F29;
+    --surface:#1F2A37;
+    --surface-2:#26323F;
+    --border:#33404E;
+    --frost:#6FA8C9;
+    --frost-dim:#3E5A6C;
+    --gold:#D9A441;
+    --vine:#5C8A52;
+    --danger:#C1524B;
+    --text:#EAE4D6;
+    --text-dim:#98A2AD;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+  }
+  h1,h2,h3{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    margin:0 0 8px;
+    letter-spacing:-0.01em;
+  }
+  code, .mono, input[type="text"], input[type="number"]{
+    font-family:'IBM Plex Mono', monospace;
+  }
+  a{ color:var(--frost); }
+  .wrap{ max-width:960px; margin:0 auto; padding:32px 20px 80px; }
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:28px;
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; }
+  .brand h1{ font-size:26px; }
+  .brand span{ color:var(--text-dim); font-size:13px; }
+  .wallet-box{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .badge{
+    font-size:12px; padding:5px 10px; border-radius:999px;
+    border:1px solid var(--border); color:var(--text-dim);
+  }
+  .badge.ok{ color:var(--vine); border-color:var(--vine); }
+  .badge.warn{ color:var(--danger); border-color:var(--danger); }
+  button{
+    font-family:'Inter',sans-serif; font-weight:600; font-size:14px;
+    padding:10px 16px; border-radius:var(--radius); border:1px solid transparent;
+    cursor:pointer; transition:transform .08s ease, opacity .15s ease;
+  }
+  button:active{ transform:scale(0.98); }
+  button:focus-visible{ outline:2px solid var(--frost); outline-offset:2px; }
+  button.primary{ background:var(--gold); color:#2A1E08; }
+  button.secondary{ background:transparent; color:var(--text); border-color:var(--border); }
+  button.danger-outline{ background:transparent; color:var(--danger); border-color:var(--danger); }
+  button:disabled{ opacity:.45; cursor:not-allowed; }
+
+  /* ---------- config strip ---------- */
+  .config{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }
+  .config label{ font-size:12px; color:var(--text-dim); }
+  .config input{
+    background:var(--bg); border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:8px 10px; font-size:13px; flex:1; min-width:220px;
+  }
+
+  /* ---------- stats ---------- */
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:28px; }
+  .stat{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px;
+  }
+  .stat .label{ font-size:12px; color:var(--text-dim); margin-bottom:6px; }
+  .stat .value{ font-family:'Fraunces',serif; font-size:24px; font-weight:600; }
+  @media (max-width:640px){ .stats{ grid-template-columns:1fr; } }
+
+  /* ---------- signature: gauge section ---------- */
+  .gauge-section{
+    display:grid; grid-template-columns:140px 1fr; gap:24px; align-items:center;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; margin-bottom:28px;
+  }
+  @media (max-width:640px){ .gauge-section{ grid-template-columns:1fr; } }
+  .gauge-caption{ font-size:13px; color:var(--text-dim); }
+  .gauge-caption b{ color:var(--text); }
+  .slider-row{ display:flex; align-items:center; gap:12px; margin-top:10px; }
+  input[type="range"]{ flex:1; accent-color:var(--frost); }
+
+  /* ---------- tabs ---------- */
+  .tabs{ display:flex; gap:6px; margin-bottom:16px; border-bottom:1px solid var(--border); }
+  .tab-btn{
+    background:transparent; border:none; color:var(--text-dim); font-weight:600;
+    padding:10px 6px; border-bottom:2px solid transparent; border-radius:0;
+  }
+  .tab-btn.active{ color:var(--text); border-color:var(--gold); }
+  .panel{ display:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+  .panel.active{ display:block; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:13px; color:var(--text-dim); margin-bottom:6px; }
+  .field input{
+    width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:10px 12px; font-size:14px;
+  }
+  .field .hint{ font-size:12px; color:var(--text-dim); margin-top:4px; }
+  .row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:640px){ .row{ grid-template-columns:1fr; } }
+  .lock-note{
+    font-size:12px; color:var(--danger); background:rgba(193,82,75,0.1);
+    border:1px solid var(--danger); border-radius:6px; padding:8px 10px; margin-bottom:14px;
+  }
+  .lookup{ margin-top:24px; padding-top:18px; border-top:1px solid var(--border); }
+  .policy-card{
+    background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    padding:14px; margin-top:12px; font-size:13px;
+  }
+  .policy-card div{ margin-bottom:4px; }
+  .policy-card .estado{ font-weight:600; }
+  .estado.activa{ color:var(--vine); }
+  .estado.pagada{ color:var(--gold); }
+  .estado.vencida{ color:var(--text-dim); }
+
+  /* ---------- activity log ---------- */
+  .log-section{ margin-top:28px; }
+  .log{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:8px 16px; max-height:220px; overflow-y:auto;
+  }
+  .log-item{
+    font-size:12px; padding:8px 0; border-bottom:1px solid var(--border);
+    display:flex; justify-content:space-between; gap:10px; color:var(--text-dim);
+  }
+  .log-item:last-child{ border-bottom:none; }
+  .log-item .evt{ color:var(--frost); font-weight:600; }
+  .empty{ color:var(--text-dim); font-size:13px; padding:16px 0; text-align:center; }
+
+  footer{ margin-top:36px; font-size:12px; color:var(--text-dim); text-align:center; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand">
+      <h1>AgroSeguro</h1>
+      <span>Seguro paramétrico agrícola en blockchain</span>
+    </div>
+    <div class="wallet-box">
+      <span id="networkBadge" class="badge">Sin conexión</span>
+      <span id="addressBadge" class="badge mono" style="display:none;"></span>
+      <button id="connectBtn" class="primary">Conectar wallet</button>
+    </div>
+  </div>
+
+  <div class="config">
+    <label for="contractInput">Dirección del contrato desplegado:</label>
+    <input id="contractInput" type="text" placeholder="0x... (pega aquí la dirección de tu AgroSeguro.sol en Sepolia)">
+    <button id="loadContractBtn" class="secondary">Cargar</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Fondo del pool</div>
+      <div class="value" id="statPool">— ETH</div>
+    </div>
+    <div class="stat">
+      <div class="label">Pólizas emitidas</div>
+      <div class="value" id="statCount">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">Tu rol detectado</div>
+      <div class="value" id="statRole" style="font-size:16px;">—</div>
+    </div>
+  </div>
+
+  <div class="gauge-section">
+    <svg viewBox="0 0 100 260" width="100" height="240" role="img" aria-label="Termómetro de umbral de helada">
+      <rect x="42" y="16" width="16" height="196" rx="8" fill="var(--surface-2)" stroke="var(--border)"/>
+      <circle cx="50" cy="228" r="20" fill="var(--surface-2)" stroke="var(--border)"/>
+      <rect id="mercury" x="45" y="120" width="10" height="100" rx="5" fill="var(--frost)"/>
+      <circle cx="50" cy="228" r="14" id="bulb" fill="var(--frost)"/>
+      <line id="umbralLine" x1="34" y1="120" x2="66" y2="120" stroke="var(--gold)" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="70" y="123" fill="var(--gold)" font-size="9" font-family="IBM Plex Mono">umbral</text>
+      <text x="20" y="20" fill="var(--text-dim)" font-size="9" font-family="IBM Plex Mono">10°C</text>
+      <text x="20" y="215" fill="var(--text-dim)" font-size="9" font-family="IBM Plex Mono">-10°C</text>
+    </svg>
+    <div>
+      <h3>Umbral de helada de la póliza</h3>
+      <p class="gauge-caption">Mueve el umbral para ver a qué temperatura se activaría el pago automático. Valor actual: <b id="umbralValue">-2.0°C</b></p>
+      <div class="slider-row">
+        <input type="range" id="umbralSlider" min="-100" max="100" value="-20" step="1">
+      </div>
+      <p class="gauge-caption" style="margin-top:10px;">Última temperatura reportada por el oráculo: <b id="ultimaTemp" class="mono">sin datos</b></p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="agricultor">Agricultor</button>
+    <button class="tab-btn" data-tab="aseguradora">Aseguradora</button>
+    <button class="tab-btn" data-tab="oraculo">Oráculo</button>
+  </div>
+
+  <div id="panel-agricultor" class="panel active">
+    <h3>Contratar póliza</h3>
+    <p class="gauge-caption">Paga la prima con tu wallet. El umbral se toma del control de arriba.</p>
+    <div class="row">
+      <div class="field">
+        <label for="montoPago">Monto de indemnización (ETH)</label>
+        <input type="text" id="montoPago" placeholder="0.05">
+      </div>
+      <div class="field">
+        <label for="duracionDias">Duración de la póliza (días)</label>
+        <input type="text" id="duracionDias" placeholder="30">
+      </div>
+    </div>
+    <div class="field">
+      <label for="prima">Prima a pagar ahora (ETH)</label>
+      <input type="text" id="prima" placeholder="0.005">
+      <div class="hint">Esto es lo que sale de tu wallet al confirmar la transacción.</div>
+    </div>
+    <button id="contratarBtn" class="primary" disabled>Contratar y pagar prima</button>
+
+    <div class="lookup">
+      <h3>Consultar una póliza</h3>
+      <div class="row">
+        <div class="field">
+          <label for="lookupId">ID de la póliza</label>
+          <input type="text" id="lookupId" placeholder="1">
+        </div>
+        <div style="align-self:end;">
+          <button id="lookupBtn" class="secondary" disabled>Consultar</button>
+        </div>
+      </div>
+      <div id="policyResult"></div>
+    </div>
+  </div>
+
+  <div id="panel-aseguradora" class="panel">
+    <div id="aseguradoraLock" class="lock-note" style="display:none;">
+      Conectaste con una wallet distinta a la aseguradora del contrato. Puedes ver los datos, pero la transacción será rechazada por el contrato.
+    </div>
+    <h3>Depositar fondo de reaseguro</h3>
+    <div class="field">
+      <label for="fondoMonto">Monto a depositar (ETH)</label>
+      <input type="text" id="fondoMonto" placeholder="0.5">
+    </div>
+    <button id="depositarBtn" class="primary" disabled>Depositar en el pool</button>
+  </div>
+
+  <div id="panel-oraculo" class="panel">
+    <div id="oraculoLock" class="lock-note" style="display:none;">
+      Conectaste con una wallet distinta al oráculo autorizado del contrato. Puedes ver los datos, pero la transacción será rechazada por el contrato.
+    </div>
+    <h3>Reportar temperatura (simulación de oráculo)</h3>
+    <div class="row">
+      <div class="field">
+        <label for="oraculoId">ID de la póliza</label>
+        <input type="text" id="oraculoId" placeholder="1">
+      </div>
+      <div class="field">
+        <label for="oraculoTemp">Temperatura registrada (°C)</label>
+        <input type="text" id="oraculoTemp" placeholder="-3.5">
+      </div>
+    </div>
+    <button id="reportarBtn" class="primary" disabled>Reportar clima</button>
+
+    <div class="lookup">
+      <h3>Marcar póliza vencida</h3>
+      <p class="gauge-caption">Para pólizas cuyo período terminó sin evento climático.</p>
+      <div class="row">
+        <div class="field">
+          <label for="vencidaId">ID de la póliza</label>
+          <input type="text" id="vencidaId" placeholder="1">
+        </div>
+        <div style="align-self:end;">
+          <button id="vencidaBtn" class="danger-outline" disabled>Marcar vencida</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-section">
+    <h3>Actividad reciente</h3>
+    <div class="log" id="log">
+      <div class="empty">Conecta tu wallet y carga el contrato para ver los eventos en vivo.</div>
+    </div>
+  </div>
+
+  <footer>
+    Red requerida: Sepolia testnet · Este panel es material de apoyo para la EFT de Fundamentos de Blockchain (BCY0010)
+  </footer>
+</div>
+
+<script>
+const CONTRACT_ABI = [
+  {"inputs":[{"internalType":"address","name":"_oraculo","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"idPoliza","type":"uint256"},{"indexed":true,"internalType":"address","name":"agricultor","type":"address"},{"indexed":false,"internalType":"uint256","name":"prima","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"montoPago","type":"uint256"}],"name":"PolizaCreada","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"origen","type":"address"},{"indexed":false,"internalType":"uint256","name":"monto","type":"uint256"}],"name":"FondoDepositado","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"idPoliza","type":"uint256"},{"indexed":false,"internalType":"int256","name":"temperatura","type":"int256"}],"name":"DatoClimaReportado","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"idPoliza","type":"uint256"},{"indexed":true,"internalType":"address","name":"agricultor","type":"address"},{"indexed":false,"internalType":"uint256","name":"monto","type":"uint256"}],"name":"PagoEjecutado","type":"event"},
+  {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"idPoliza","type":"uint256"}],"name":"PolizaVencida","type":"event"},
+  {"inputs":[],"name":"aseguradora","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"oraculo","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"poolFondos","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"contadorPolizas","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[],"name":"depositarFondo","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"_montoPago","type":"uint256"},{"internalType":"int256","name":"_umbralTemperatura","type":"int256"},{"internalType":"uint256","name":"_duracionDias","type":"uint256"}],"name":"contratarPoliza","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"_idPoliza","type":"uint256"},{"internalType":"int256","name":"_temperatura","type":"int256"}],"name":"reportarClima","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"_idPoliza","type":"uint256"}],"name":"marcarVencida","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"_idPoliza","type":"uint256"}],"name":"consultarPoliza","outputs":[{"components":[{"internalType":"address","name":"agricultor","type":"address"},{"internalType":"uint256","name":"prima","type":"uint256"},{"internalType":"uint256","name":"montoPago","type":"uint256"},{"internalType":"int256","name":"umbralTemperatura","type":"int256"},{"internalType":"uint256","name":"fechaInicio","type":"uint256"},{"internalType":"uint256","name":"fechaFin","type":"uint256"},{"internalType":"uint8","name":"estado","type":"uint8"}],"internalType":"struct AgroSeguro.Poliza","name":"","type":"tuple"}],"stateMutability":"view","type":"function"}
+];
+
+// TODO equipo: si despliegan siempre la misma dirección, pueden dejarla fija aquí.
+const CONFIG = { contractAddress: "" };
+const SEPOLIA_CHAIN_ID = 11155111n;
+
+let provider, signer, contract, myAddress;
+const ESTADOS = ["activa", "pagada", "vencida"];
+
+function log(evt, text){
+  const el = document.getElementById('log');
+  if(el.querySelector('.empty')) el.innerHTML = "";
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.innerHTML = `<span class="evt">${evt}</span><span>${text}</span>`;
+  el.prepend(item);
+}
+
+function setBadges(connected, chainOk, addr){
+  const net = document.getElementById('networkBadge');
+  const adr = document.getElementById('addressBadge');
+  if(!connected){ net.textContent = "Sin conexión"; net.className = "badge"; adr.style.display="none"; return; }
+  net.textContent = chainOk ? "Sepolia ✓" : "Red incorrecta";
+  net.className = "badge " + (chainOk ? "ok" : "warn");
+  adr.style.display = "inline-block";
+  adr.textContent = addr.slice(0,6) + "…" + addr.slice(-4);
+}
+
+function setActionsEnabled(enabled){
+  ["contratarBtn","lookupBtn","depositarBtn","reportarBtn","vencidaBtn"].forEach(id=>{
+    document.getElementById(id).disabled = !enabled;
+  });
+}
+
+async function connectWallet(){
+  if(!window.ethereum){
+    alert("No se detectó Metamask. Instálalo para usar este panel.");
+    return;
+  }
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = await provider.getSigner();
+  myAddress = await signer.getAddress();
+  const network = await provider.getNetwork();
+  const chainOk = network.chainId === SEPOLIA_CHAIN_ID;
+  setBadges(true, chainOk, myAddress);
+  if(!chainOk){
+    log("Aviso", "Cambia Metamask a la red Sepolia para operar el contrato.");
+  }
+  const addrInput = document.getElementById('contractInput').value.trim();
+  if(addrInput) await loadContract(addrInput);
+}
+
+async function loadContract(address){
+  if(!signer){ alert("Conecta tu wallet primero."); return; }
+  if(!ethers.isAddress(address)){ alert("Esa dirección no es válida."); return; }
+  contract = new ethers.Contract(address, CONTRACT_ABI, signer);
+  CONFIG.contractAddress = address;
+  try{
+    await refreshStats();
+    await detectRole();
+    listenToEvents();
+    setActionsEnabled(true);
+    log("Contrato", "Cargado en " + address.slice(0,10) + "…");
+  }catch(e){
+    console.error(e);
+    alert("No se pudo leer el contrato en esa dirección. Revisa que esté desplegado en la red actual.");
+  }
+}
+
+async function refreshStats(){
+  const pool = await contract.poolFondos();
+  const count = await contract.contadorPolizas();
+  document.getElementById('statPool').textContent = ethers.formatEther(pool) + " ETH";
+  document.getElementById('statCount').textContent = count.toString();
+}
+
+async function detectRole(){
+  const aseguradora = (await contract.aseguradora()).toLowerCase();
+  const oraculo = (await contract.oraculo()).toLowerCase();
+  const me = myAddress.toLowerCase();
+  const roleEl = document.getElementById('statRole');
+  document.getElementById('aseguradoraLock').style.display = "none";
+  document.getElementById('oraculoLock').style.display = "none";
+  if(me === aseguradora){
+    roleEl.textContent = "Aseguradora";
+  } else if(me === oraculo){
+    roleEl.textContent = "Oráculo";
+  } else {
+    roleEl.textContent = "Agricultor";
+    document.getElementById('aseguradoraLock').style.display = "block";
+    document.getElementById('oraculoLock').style.display = "block";
+  }
+}
+
+function listenToEvents(){
+  contract.on("PolizaCreada", (id, agricultor, prima, monto)=>{
+    log("PolizaCreada", `#${id} · ${ethers.formatEther(prima)} ETH prima`);
+    refreshStats();
+  });
+  contract.on("FondoDepositado", (origen, monto)=>{
+    log("FondoDepositado", `${ethers.formatEther(monto)} ETH`);
+    refreshStats();
+  });
+  contract.on("DatoClimaReportado", (id, temp)=>{
+    const c = Number(temp)/10;
+    document.getElementById('ultimaTemp').textContent = c.toFixed(1) + "°C (póliza #" + id + ")";
+    log("DatoClimaReportado", `póliza #${id} → ${c.toFixed(1)}°C`);
+  });
+  contract.on("PagoEjecutado", (id, agricultor, monto)=>{
+    log("PagoEjecutado", `#${id} · pagado ${ethers.formatEther(monto)} ETH`);
+    refreshStats();
+  });
+  contract.on("PolizaVencida", (id)=>{
+    log("PolizaVencida", `#${id}`);
+  });
+}
+
+// ---------- gauge ----------
+function updateGauge(deciCelsius){
+  const c = deciCelsius/10;
+  document.getElementById('umbralValue').textContent = c.toFixed(1) + "°C";
+  const yTop = 20, yBottom = 220, min=-10, max=10;
+  const y = yBottom - ((c-min)/(max-min))*(yBottom-yTop);
+  const clampedY = Math.max(yTop, Math.min(yBottom, y));
+  document.getElementById('umbralLine').setAttribute('y1', clampedY);
+  document.getElementById('umbralLine').setAttribute('y2', clampedY);
+  document.getElementById('mercury').setAttribute('y', clampedY);
+  document.getElementById('mercury').setAttribute('height', yBottom - clampedY);
+}
+
+document.getElementById('umbralSlider').addEventListener('input', (e)=>{
+  updateGauge(parseInt(e.target.value, 10));
+});
+updateGauge(-20);
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- actions ----------
+document.getElementById('connectBtn').addEventListener('click', connectWallet);
+document.getElementById('loadContractBtn').addEventListener('click', ()=>{
+  loadContract(document.getElementById('contractInput').value.trim());
+});
+
+document.getElementById('contratarBtn').addEventListener('click', async ()=>{
+  try{
+    const montoPago = ethers.parseEther(document.getElementById('montoPago').value || "0");
+    const duracion = BigInt(document.getElementById('duracionDias').value || "0");
+    const prima = ethers.parseEther(document.getElementById('prima').value || "0");
+    const umbral = BigInt(document.getElementById('umbralSlider').value);
+    const tx = await contract.contratarPoliza(montoPago, umbral, duracion, { value: prima });
+    log("Transacción", "Enviada, esperando confirmación…");
+    await tx.wait();
+    log("Transacción", "Póliza contratada ✓");
+    refreshStats();
+  }catch(err){ console.error(err); alert("La transacción falló. Revisa la consola para más detalle."); }
+});
+
+document.getElementById('lookupBtn').addEventListener('click', async ()=>{
+  try{
+    const id = document.getElementById('lookupId').value;
+    const p = await contract.consultarPoliza(id);
+    const estado = ESTADOS[Number(p.estado)] || "?";
+    document.getElementById('policyResult').innerHTML = `
+      <div class="policy-card">
+        <div>Agricultor: <span class="mono">${p.agricultor}</span></div>
+        <div>Prima pagada: ${ethers.formatEther(p.prima)} ETH</div>
+        <div>Indemnización: ${ethers.formatEther(p.montoPago)} ETH</div>
+        <div>Umbral: ${(Number(p.umbralTemperatura)/10).toFixed(1)}°C</div>
+        <div>Vence: ${new Date(Number(p.fechaFin)*1000).toLocaleString()}</div>
+        <div class="estado ${estado}">Estado: ${estado}</div>
+      </div>`;
+  }catch(err){ console.error(err); alert("No se encontró esa póliza."); }
+});
+
+document.getElementById('depositarBtn').addEventListener('click', async ()=>{
+  try{
+    const monto = ethers.parseEther(document.getElementById('fondoMonto').value || "0");
+    const tx = await contract.depositarFondo({ value: monto });
+    log("Transacción", "Depositando fondo…");
+    await tx.wait();
+    log("Transacción", "Fondo depositado ✓");
+    refreshStats();
+  }catch(err){ console.error(err); alert("La transacción falló (¿eres la aseguradora?)."); }
+});
+
+document.getElementById('reportarBtn').addEventListener('click', async ()=>{
+  try{
+    const id = document.getElementById('oraculoId').value;
+    const temp = Math.round(parseFloat(document.getElementById('oraculoTemp').value || "0") * 10);
+    const tx = await contract.reportarClima(id, temp);
+    log("Transacción", "Reportando clima…");
+    await tx.wait();
+    log("Transacción", "Clima reportado ✓");
+  }catch(err){ console.error(err); alert("La transacción falló (¿eres el oráculo?)."); }
+});
+
+document.getElementById('vencidaBtn').addEventListener('click', async ()=>{
+  try{
+    const id = document.getElementById('vencidaId').value;
+    const tx = await contract.marcarVencida(id);
+    await tx.wait();
+    log("Transacción", `Póliza #${id} marcada vencida`);
+  }catch(err){ console.error(err); alert("La transacción falló."); }
+});
+</script>
+</body>
+</html>
